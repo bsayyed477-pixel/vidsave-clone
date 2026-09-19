@@ -51,10 +51,18 @@ app.post("/api/info", async (req, res) => {
       url,
     ]);
     const info = JSON.parse(output);
+
+    const heights = new Set();
+    (info.formats || []).forEach((f) => {
+      if (f.height && f.vcodec !== "none") heights.add(f.height);
+    });
+    const qualities = Array.from(heights).sort((a, b) => b - a).slice(0, 6);
+
     res.json({
       title: info.title,
       thumbnail: info.thumbnail,
       duration: info.duration,
+      qualities,
     });
   } catch (err) {
     console.error(err);
@@ -62,47 +70,56 @@ app.post("/api/info", async (req, res) => {
   }
 });
 app.get("/api/download", async (req, res) => {
-  const { url, mode = "mp4" } = req.query;
+  const { url, mode = "mp4", quality } = req.query;
   if (!url || !isAllowedUrl(url)) {
     return res.status(400).send("Missing or unsupported URL");
   }
 
   const isAudio = mode === "mp3";
+
+  if (!isAudio) {
+    const heightFilter = quality ? `[height<=${quality}]` : "";
+    const formatStr = `best[ext=mp4]${heightFilter}/best${heightFilter}/best`;
+
+    res.setHeader("Content-Disposition", `attachment; filename="download.mp4"`);
+    const proc = spawn("yt-dlp", [
+      "-f", formatStr,
+      "--no-playlist",
+      "--extractor-args", "youtube:player_client=android",
+      "--merge-output-format", "mp4",
+      "-o", "-",
+      url,
+    ]);
+    proc.stdout.pipe(res);
+    proc.stderr.on("data", () => {});
+    proc.on("error", () => {
+      if (!res.headersSent) res.status(500).send("Download failed");
+    });
+    return;
+  }
+
   const tempName = `dl_${Date.now()}`;
   const tempDir = os.tmpdir();
   const outputTemplate = path.join(tempDir, `${tempName}.%(ext)s`);
 
-  const args = isAudio
-    ? [
-        "-x", "--audio-format", "mp3",
-        "--no-playlist",
-        "--extractor-args", "youtube:player_client=android",
-        "-o", outputTemplate,
-        url,
-      ]
-    : [
-        "-f", "best[ext=mp4]/best",
-        "--no-playlist",
-        "--extractor-args", "youtube:player_client=android",
-        "-o", outputTemplate,
-        url,
-      ];
-
   try {
-    await runYtdlp(args);
+    await runYtdlp([
+      "-x", "--audio-format", "mp3",
+      "--no-playlist",
+      "--extractor-args", "youtube:player_client=android",
+      "-o", outputTemplate,
+      url,
+    ]);
 
     const files = fs.readdirSync(tempDir).filter((f) => f.startsWith(tempName));
     if (files.length === 0) {
       return res.status(500).send("Download failed: no output file");
     }
     const finalPath = path.join(tempDir, files[0]);
-    const ext = isAudio ? "mp3" : "mp4";
-
-    res.setHeader("Content-Disposition", `attachment; filename="download.${ext}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="download.mp3"`);
     const stream = fs.createReadStream(finalPath);
     stream.pipe(res);
-    stream.on("close", () => fs.unlin
-(finalPath, () => {}));
+    stream.on("close", () => fs.unlink(finalPath, () => {}));
   } catch (err) {
     console.error(err);
     if (!res.headersSent) res.status(500).send("Download failed");
