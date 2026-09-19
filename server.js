@@ -3,7 +3,7 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const os = require("os");
-const ytdlp = require("yt-dlp-exec");
+const { spawn } = require("child_process");
 
 const app = express();
 app.use(cors());
@@ -24,18 +24,33 @@ function isAllowedUrl(rawUrl) {
     return false;
   }
 }
+
+function runYtdlp(args) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("yt-dlp", args);
+    let stdout = "";
+    let stderr = "";
+    proc.stdout.on("data", (d) => (stdout += d));
+    proc.stderr.on("data", (d) => (stderr += d));
+    proc.on("close", (code) => {
+      if (code === 0) resolve(stdout);
+      else reject(new Error(stderr || `yt-dlp exited with code ${code}`));
+    });
+  });
+}
 app.post("/api/info", async (req, res) => {
   const { url } = req.body || {};
   if (!url || !isAllowedUrl(url)) {
     return res.status(400).json({ error: "Missing or unsupported URL" });
   }
   try {
-    const info = await ytdlp(url, {
-      dumpSingleJson: true,
-      noWarnings: true,
-      noCheckCertificates: true,
-      extractorArgs: "youtube:player_client=android",
-    });
+    const output = await runYtdlp([
+      "-J",
+      "--no-warnings",
+      "--extractor-args", "youtube:player_client=android",
+      url,
+    ]);
+    const info = JSON.parse(output);
     res.json({
       title: info.title,
       thumbnail: info.thumbnail,
@@ -57,25 +72,24 @@ app.get("/api/download", async (req, res) => {
   const tempDir = os.tmpdir();
   const outputTemplate = path.join(tempDir, `${tempName}.%(ext)s`);
 
-  try {
-    const options = isAudio
-      ? {
-          output: outputTemplate,
-          extractAudio: true,
-          audioFormat: "mp3",
-          noPlaylist: true,
-          noCheckCertificates: true,
-          extractorArgs: "youtube:player_client=android",
-        }
-      : {
-          output: outputTemplate,
-          format: "best[ext=mp4]/best",
-          noPlaylist: true,
-          noCheckCertificates: true,
-          extractorArgs: "youtube:player_client=android",
-        };
+  const args = isAudio
+    ? [
+        "-x", "--audio-format", "mp3",
+        "--no-playlist",
+        "--extractor-args", "youtube:player_client=android",
+        "-o", outputTemplate,
+        url,
+      ]
+    : [
+        "-f", "best[ext=mp4]/best",
+        "--no-playlist",
+        "--extractor-args", "youtube:player_client=android",
+        "-o", outputTemplate,
+        url,
+      ];
 
-    await ytdlp(url, options);
+  try {
+    await runYtdlp(args);
 
     const files = fs.readdirSync(tempDir).filter((f) => f.startsWith(tempName));
     if (files.length === 0) {
@@ -87,7 +101,8 @@ app.get("/api/download", async (req, res) => {
     res.setHeader("Content-Disposition", `attachment; filename="download.${ext}"`);
     const stream = fs.createReadStream(finalPath);
     stream.pipe(res);
-    stream.on("close", () => fs.unlink(finalPath, () => {}));
+    stream.on("close", () => fs.unlin
+(finalPath, () => {}));
   } catch (err) {
     console.error(err);
     if (!res.headersSent) res.status(500).send("Download failed");
@@ -95,4 +110,4 @@ app.get("/api/download", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
