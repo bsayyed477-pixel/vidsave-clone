@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Grabline — Video Downloader</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: #F3F5F7;
+    color: #1A1A1A;
+  }
+  .topbar {
+    background: #0F2540;
+    padding: 14px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo { font-size: 22px; font-weight: 800; color: #fff; }
+  .logo span { color: #2EE6A6; }
+  .hero {
+    background: linear-gradient(135deg, #1E88E5, #00BFA5);
+    padding: 40px 20px 56px;
+    text-align: center;
+    color: #fff;
+  }
+  .hero h1 {
+    font-size: 28px;
+    margin: 0 0 6px;
+    font-weight: 800;
+  }
+  .hero h1 span { color: #FFD54A; }
+  .hero p {
+    margin: 0 0 24px;
+    opacity: 0.95;
+    font-size: 15px;
+  }
+  .search-card {
+    background: #fff;
+    border-radius: 14px;
+    padding: 8px;
+    display: flex;
+    gap: 8px;
+    max-width: 520px;
+    margin: 0 auto;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+  }
+  .search-card input {
+    flex: 1;
+    border: none;
+    outline: none;
+    padding: 14px 12px;
+    font-size: 15px;
+    border-radius: 8px;
+    color: #333;
+  }
+  .search-card button {
+    background: #2EAE55;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0 22px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .status {
+    color: #fff;
+    font-size: 13px;
+    margin-top: 10px;
+    min-height: 16px;
+  }
+  .status.error { color: #FFD6D6; }
+  .content {
+    max-width: 640px;
+    margin: -24px auto 0;
+    padding: 0 20px 40px;
+    position: relative;
+  }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.06);
+  }
+  .result-card { display: none; }
+  .result-card.visible { display: block; }
+  .preview { display: flex; gap: 14px; }
+  .preview img {
+    width: 120px;
+    height: 90px;
+    object-fit: cover;
+    border-radius: 8px;
+    flex-shrink: 0;
+  }
+  .preview h2 {
+    font-size: 15px;
+    margin: 0 0 6px;
+    line-height: 1.4;
+  }
+  .preview .dur {
+    font-size: 13px;
+    color: #777;
+  }
+  .choices {
+    margin-top: 16px;
+    display: flex;
+    gap: 10px;
+  }
+  .choice {
+    flex: 1;
+    background: #F0F2F5;
+    border: 2px solid transparent;
+    border-radius: 8px;
+    padding: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    color: #333;
+  }
+  .choice.active {
+    border-color: #2EAE55;
+    background: #E9FBEF;
+    color: #1A7A3A;
+  }
+  .go {
+    margin-top: 14px;
+    width: 100%;
+    background: #2EAE55;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-weight: 700;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  .go:disabled { opacity: 0.6; }
+  .download-status {
+    margin-top: 10px;
+    font-size: 13px;
+    color: #555;
+    text-align: center;
+  }
+  footer {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 0 20px 40px;
+    font-size: 12px;
+    color: #888;
+    line-height: 1.6;
+  }
+</style>
+<style>
+  .spinner {
+    display: none;
+    width: 20px; height: 20px;
+    border: 3px solid #cfd8dc;
+    border-top-color: #2EAE55;
+    border-radius: 50%;
+    margin: 12px auto 0;
+    animation: spin 0.8s linear infinite;
+  }
+  .spinner.visible { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .done-check {
+    display: none;
+    text-align: center;
+    color: #2EAE55;
+    font-weight: 700;
+    margin-top: 10px;
+  }
+  .done-check.visible { display: block; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">Grab<span>line</span></div>
+  </div>
+
+  <div class="hero">
+    <h1>Save any <span>video</span> in one tap</h1>
+    <p>YouTube, TikTok, Instagram — video or audio, free.</p>
+
+    <div class="search-card">
+      <input type="text" id="url" placeholder="Paste a video link..." />
+      <button id="fetchBtn">Find</button>
+    </div>
+    <div class="status" id="fetchStatus"></div>
+  </div>
+
+  <div class="content">
+    <div class="card result-card" id="result">
+      <div class="preview">
+        <img id="thumb" src="" alt="" />
+        <div>
+          <h2 id="title"></h2>
+          <div class="dur" id="dur"></div>
+        </div>
+      </div>
+      <div class="choices">
+        <button class="choice active" data-mode="mp4">Video (MP4)</button>
+        <button class="choice" data-mode="mp3">Audio (MP3)</button>
+      </div>
+      <button class="go" id="downloadBtn">Download</button>
+      <div class="spinner" id="spinner"></div>
+      <div class="done-check" id="doneCheck">✓ Download complete</div>
+      <div class="download-status" id="downloadStatus"></div>
+    </div>
+  </div>
+
+  <footer>
+    Only download content you own or have the right to save. Most videos are
+    copyrighted — downloading may violate the platform's terms of service.
+  </footer>
+<script>
+  const urlInput = document.getElementById("url");
+  const fetchBtn = document.getElementById("fetchBtn");
+  const fetchStatus = document.getElementById("fetchStatus");
+  const result = document.getElementById("result");
+  const thumb = document.getElementById("thumb");
+  const title = document.getElementById("title");
+  const dur = document.getElementById("dur");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const downloadStatus = document.getElementById("downloadStatus");
+  const spinner = document.getElementById("spinner");
+  const doneCheck = document.getElementById("doneCheck");
+  const choiceBtns = document.querySelectorAll(".choice");
+
+  let mode = "mp4";
+  let currentUrl = "";
+
+  choiceBtns.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      choiceBtns.forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      mode = btn.dataset.mode;
+    });
+  });
+
+  fetchBtn.addEventListener("click", async () => {
+    const url = urlInput.value.trim();
+    if (!url) return;
+    currentUrl = url;
+    fetchStatus.textContent = "Looking up video...";
+    fetchBtn.disabled = true;
+    result.classList.remove("visible");
+    doneCheck.classList.remove("visible");
+    try {
+      const res = await fetch("/api/info", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Failed");
+      const data = await res.json();
+      thumb.src = data.thumbnail || "";
+      title.textContent = data.title || "Untitled";
+      dur.textContent = data.duration ? formatDuration(data.duration) : "";
+      result.classList.add("visible");
+      fetchStatus.textContent = "";
+    } catch (err) {
+      fetchStatus.textContent = err.message || "Could not fetch that link.";
+      fetchStatus.classList.add("error");
+    } finally {
+      fetchBtn.disabled = false;
+    }
+  });
+
+  downloadBtn.addEventListener("click", async () => {
+    if (!currentUrl) return;
+    downloadBtn.disabled = true;
+    doneCheck.classList.remove("visible");
+    spinner.classList.add("visible");
+    downloadStatus.textContent = "Preparing your file, this can take a bit...";
+
+    try {
+      const res = await fetch(
+        `/api/download?url=${encodeURIComponent(currentUrl)}&mode=${mode}`
+      );
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = mode === "mp3" ? "download.mp3" : "download.mp4";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(blobUrl);
+
+      spinner.classList.remove("visible");
+      doneCheck.classList.add("visible");
+      downloadStatus.textContent = "";
+    } catch (err) {
+      spinner.classList.remove("visible");
+      downloadStatus.textContent = "Something went wrong. Try again.";
+    } finally {
+      downloadBtn.disabled = false;
+    }
+  });
+
+  function formatDuration(seconds) {
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  }
+</script>
+</body>
+</html>

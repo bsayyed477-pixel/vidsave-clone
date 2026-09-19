@@ -1,0 +1,17 @@
+{
+  "name": "vidsave-clone",
+  "version": "1.0.0",
+  "description": "Starter video downloader using yt-dlp",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "yt-dlp-exec": "^1.0.2"
+  },
+  "allowScripts": {
+    "yt-dlp-exec@1.0.2": true
+  }
+}
